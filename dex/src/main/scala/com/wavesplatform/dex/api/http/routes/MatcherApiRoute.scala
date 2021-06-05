@@ -252,9 +252,7 @@ class MatcherApiRoute(
     response = classOf[String]
   )
   def getMatcherPublicKey: Route =
-    (pathEndOrSingleSlash & get)((withMetricsAndTraces("getMatcherPublicKey") & protect) {
-      complete(matcherPublicKey.toJson)
-    })
+    (pathEndOrSingleSlash & get)((withMetricsAndTraces("getMatcherPublicKey") & protect)(complete(matcherPublicKey.toJson)))
 
   @Path("/settings")
   @ApiOperation(
@@ -296,9 +294,7 @@ class MatcherApiRoute(
     tags = Array("rates"),
     response = classOf[HttpRates]
   )
-  def getRates: Route = (pathEndOrSingleSlash & get)(withMetricsAndTraces("getRates") {
-    complete(rateCache.getAllRates.toJson)
-  })
+  def getRates: Route = (pathEndOrSingleSlash & get)(withMetricsAndTraces("getRates")(complete(rateCache.getAllRates.toJson)))
 
   @Path("/settings/rates/{assetId}")
   @ApiOperation(
@@ -657,9 +653,7 @@ class MatcherApiRoute(
       )
     )
   )
-  def cancelAll: Route = (path("cancel") & post)((withMetricsAndTraces("cancelAll") & protect) {
-    handleCancelRequestToRoute(None)
-  })
+  def cancelAll: Route = (path("cancel") & post)((withMetricsAndTraces("cancelAll") & protect)(handleCancelRequestToRoute(None)))
 
   @Path("/orders/{address}/cancel")
   @ApiOperation(
