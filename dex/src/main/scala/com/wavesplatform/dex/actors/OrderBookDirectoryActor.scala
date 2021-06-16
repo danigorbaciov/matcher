@@ -196,7 +196,17 @@ class OrderBookDirectoryActor(
       currentOffsetGauge.update(lastProcessedNr.toDouble)
       createSnapshotFor(lastProcessedNr)
 
-    case request: ForceStartOrderBook => runFor(request.assetPair, lastProcessedNr)((sender, orderBook) => orderBook.tell(request, sender))
+    case request: CheckOrderBookAvailability =>
+      val s = sender()
+      orderBook(request.assetPair) match {
+        case Some(Right(_)) => s ! OrderBookIsAvailable(request.assetPair)
+        case Some(Left(_)) => s ! OrderBookUnavailable(error.OrderBookBroken(request.assetPair))
+        case None if context.child(OrderBookActor.name(request.assetPair)).isEmpty =>
+          s ! OrderBookUnavailable(error.OrderBookBroken(request.assetPair))
+        case _ =>
+          log.error(s"OrderBook for ${request.assetPair} is stopped, but it is not observed in orderBook")
+          s ! OrderBookUnavailable(error.OrderBookUnexpectedState(request.assetPair))
+      }
 
     case Shutdown =>
       context.children.foreach(context.unwatch)
@@ -357,8 +367,8 @@ object OrderBookDirectoryActor {
 
   case class Snapshot(tradedPairsSet: Set[AssetPair])
 
-  case class ForceStartOrderBook(assetPair: AssetPair)
-  case class OrderBookCreated(assetPair: AssetPair)
+  case class CheckOrderBookAvailability(assetPair: AssetPair)
+  case class OrderBookIsAvailable(assetPair: AssetPair)
   case class AggregatedOrderBookEnvelope(assetPair: AssetPair, message: AggregatedOrderBookActor.Message)
 
   case object GetMarkets

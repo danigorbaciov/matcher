@@ -148,7 +148,7 @@ class MatcherApiRoute(
   private def forceCheckOrderBook(p: AssetPair): Directive0 = {
     val withCachedAssets = getAssetDescription(p.amountAsset)
       .product(getAssetDescription(p.priceAsset))
-      .semiflatMap(_ => matcher ? ForceStartOrderBook(p))
+      .semiflatMap(_ => matcher ? CheckOrderBookAvailability(p))
 
     onComplete(withCachedAssets.value)
       .flatMap {
