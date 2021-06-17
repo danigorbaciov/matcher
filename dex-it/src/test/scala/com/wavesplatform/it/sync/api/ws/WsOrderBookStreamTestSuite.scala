@@ -443,20 +443,21 @@ class WsOrderBookStreamTestSuite extends WsSuiteBase {
       dex1.api.cancelAll(alice)
     }
 
-    "not be opened even if there is no such order book" in {
+    "be opened even if there is no such order book" in {
       val IssueResults(issueTx, _, bch) = mkIssueExtended(alice, "BCHC", 1000.asset8)
       val bchUsdPair = AssetPair(bch, usd)
 
       broadcastAndAwait(issueTx)
 
-      val wsc1 = mkWsOrderBookConnection(bchUsdPair, dex1)
-      wsc1.receiveAtLeastN[WsError](1)
+      val wsc = mkWsOrderBookConnection(bchUsdPair, dex1)
+      val snapshot = wsc.receiveAtLeastN[WsOrderBookChanges](1).head
 
-      wsc1.close()
+      snapshot.asks shouldBe empty
+      snapshot.bids shouldBe empty
+      wsc.clearMessages()
 
       placeAndAwaitAtDex(mkOrderDP(alice, bchUsdPair, SELL, 10.asset8, 231.0))
-      val wsc2 = mkWsOrderBookConnection(bchUsdPair, dex1)
-      wsc2.receiveAtLeastN[WsOrderBookChanges](1).head.asks should matchTo(TreeMap(231.0 -> 10.0))
+      wsc.receiveAtLeastN[WsOrderBookChanges](1).head.asks should matchTo(TreeMap(231.0 -> 10.0))
     }
 
     def placeOrdersAsync(t: OrderType): Unit = {

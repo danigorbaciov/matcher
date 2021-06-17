@@ -8,7 +8,7 @@ import akka.actor.typed.scaladsl.adapter._
 import akka.testkit.TestProbe
 import cats.syntax.either._
 import com.wavesplatform.dex._
-import com.wavesplatform.dex.actors.OrderBookDirectoryActor.{AggregatedOrderBookEnvelope, AggregatedOrderBookEnvelopeSent}
+import com.wavesplatform.dex.actors.OrderBookDirectoryActor.AggregatedOrderBookEnvelope
 import com.wavesplatform.dex.actors.address.AddressActor.WsCommand
 import com.wavesplatform.dex.actors.address.{AddressActor, AddressDirectoryActor}
 import com.wavesplatform.dex.actors.orderbook.AggregatedOrderBookActor
@@ -82,7 +82,6 @@ class WsExternalClientHandlerActorSpec extends AnyFreeSpecLike with Matchers wit
 
         subscribeAssetPair()
         t.matcherProbe.expectMsg(AggregatedOrderBookEnvelope(assetPair, Command.AddWsSubscription(t.clientProbe.ref)))
-        t.matcherProbe.reply(AggregatedOrderBookEnvelopeSent(assetPair))
 
         (1 to 10) foreach (_ => subscribeAssetPair())
         t.matcherProbe.expectNoMessage()
@@ -210,7 +209,6 @@ class WsExternalClientHandlerActorSpec extends AnyFreeSpecLike with Matchers wit
       t.wsHandlerRef ! ProcessClientMessage(WsAddressSubscribe(clientKeyPair, WsAddressSubscribe.defaultAuthType, mkJwt(jwtPayload)))
 
       t.matcherProbe.expectMsg(AggregatedOrderBookEnvelope(assetPair, Command.AddWsSubscription(clientRef)))
-      t.matcherProbe.reply(AggregatedOrderBookEnvelopeSent(assetPair))
       t.addressProbe.expectMsg(AddressDirectoryActor.Command.ForwardMessage(clientKeyPair, WsCommand.AddWsSubscription(clientRef)))
 
       t.wsHandlerRef ! WsExternalClientHandlerActor.Event.Completed(().asRight)
@@ -225,13 +223,11 @@ class WsExternalClientHandlerActorSpec extends AnyFreeSpecLike with Matchers wit
       assetPairs.foreach { assetPair =>
         t.wsHandlerRef ! ProcessClientMessage(WsOrderBookSubscribe(assetPair, 1))
         t.matcherProbe.expectMsg(AggregatedOrderBookEnvelope(assetPair, Command.AddWsSubscription(t.clientProbe.ref)))
-        t.matcherProbe.reply(AggregatedOrderBookEnvelopeSent(assetPair))
       }
 
       def checkEviction(newSubscription: AssetPair, oldSubscription: AssetPair): Unit = {
         t.wsHandlerRef ! ProcessClientMessage(WsOrderBookSubscribe(newSubscription, 1))
         t.matcherProbe.expectMsg(AggregatedOrderBookEnvelope(newSubscription, Command.AddWsSubscription(t.clientProbe.ref)))
-        t.matcherProbe.reply(AggregatedOrderBookEnvelopeSent(assetPair))
 
         t.matcherProbe.expectMsg(AggregatedOrderBookEnvelope(oldSubscription, Command.RemoveWsSubscription(t.clientProbe.ref)))
         t.clientProbe.expectMessageType[WsError] should matchTo {
