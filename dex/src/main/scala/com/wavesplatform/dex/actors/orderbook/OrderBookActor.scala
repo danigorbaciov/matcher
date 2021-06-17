@@ -7,7 +7,7 @@ import cats.data.NonEmptyList
 import cats.instances.option.catsStdInstancesForOption
 import cats.syntax.apply._
 import cats.syntax.option._
-import com.wavesplatform.dex.actors.OrderBookDirectoryActor.SaveSnapshot
+import com.wavesplatform.dex.actors.OrderBookDirectoryActor.{AggregatedOrderBookEnvelopeSent, SaveSnapshot}
 import com.wavesplatform.dex.actors.address.AddressActor
 import com.wavesplatform.dex.actors.events.OrderEventsCoordinatorActor
 import com.wavesplatform.dex.actors.orderbook.OrderBookActor._
@@ -29,6 +29,7 @@ import kamon.Kamon
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext
+import scala.util.Success
 
 class OrderBookActor(
   settings: Settings,
@@ -159,7 +160,9 @@ class OrderBookActor(
         savingSnapshot = Some(globalEventNr)
       }
 
-    case x: AggregatedOrderBookActor.InputMessage => aggregatedRef.tell(x)
+    case x: AggregatedOrderBookActor.InputMessage =>
+      aggregatedRef.tell(x)
+      sender() ! AggregatedOrderBookEnvelopeSent(assetPair)
 
     case classic.Terminated(ref) =>
       log.error(s"Terminated actor: $ref")

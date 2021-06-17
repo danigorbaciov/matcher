@@ -243,7 +243,7 @@ class OrderBookDirectoryActor(
       val s = sender()
       context.actorOf(WatchDistributedCompletionActor.props(workers, s, Ping, Pong, settings.processConsumedTimeout))
 
-    case AggregatedOrderBookEnvelope(pair, message) => runFor(pair, lastProcessedNr) { (sender, ref) =>
+    case AggregatedOrderBookEnvelope(pair, message) => runFor(pair, lastProcessedNr, autoCreate = false) { (sender, ref) =>
         ref.tell(message, sender)
       }
 
@@ -370,6 +370,7 @@ object OrderBookDirectoryActor {
   case class CheckOrderBookAvailability(assetPair: AssetPair)
   case class OrderBookIsAvailable(assetPair: AssetPair)
   case class AggregatedOrderBookEnvelope(assetPair: AssetPair, message: AggregatedOrderBookActor.Message)
+  case class AggregatedOrderBookEnvelopeSent(assetPair: AssetPair)
 
   case object GetMarkets
 

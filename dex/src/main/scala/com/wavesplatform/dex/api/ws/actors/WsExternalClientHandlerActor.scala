@@ -4,11 +4,14 @@ import akka.actor.Cancellable
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior, Terminated}
 import akka.{actor => classic}
+import akka.pattern.ask
+import akka.util.Timeout
 import cats.implicits.catsSyntaxEitherId
 import cats.syntax.option._
 import com.wavesplatform.dex.actors.OrderBookDirectoryActor
 import com.wavesplatform.dex.actors.address.{AddressActor, AddressDirectoryActor}
 import com.wavesplatform.dex.actors.orderbook.AggregatedOrderBookActor
+import com.wavesplatform.dex.api.http.entities.OrderBookUnavailable
 import com.wavesplatform.dex.api.ws.actors.WsExternalClientHandlerActor.Command.CancelAddressSubscription
 import com.wavesplatform.dex.api.ws.protocol._
 import com.wavesplatform.dex.api.ws.state.WsAddressState
@@ -50,6 +53,7 @@ object WsExternalClientHandlerActor {
   object Event {
     private[WsExternalClientHandlerActor] case class AssetPairValidated(assetPair: AssetPair) extends Event
     case class Completed(completionStatus: Either[Throwable, Unit]) extends Event
+    case class NewOrderBookSubscriptions(orderBookSubscriptions: Queue[AssetPair]) extends Event
   }
 
   final case class Settings(
@@ -281,27 +285,37 @@ object WsExternalClientHandlerActor {
               }
 
             case Event.AssetPairValidated(assetPair) =>
-              matcherRef ! OrderBookDirectoryActor.AggregatedOrderBookEnvelope(
+              val addSubscriptionFuture = (matcherRef ? OrderBookDirectoryActor.AggregatedOrderBookEnvelope(
                 assetPair,
                 AggregatedOrderBookActor.Command.AddWsSubscription(clientRef)
-              )
+              ))(new Timeout(settings.messagesInterval))
+              context.pipeToSelf(addSubscriptionFuture) {
+                case Success(v: OrderBookUnavailable) =>
+                  context.log.warn(s"Cannot subscribe to an unavailable orderBook: $assetPair")
+                  clientRef ! WsError.from(v.error, matcherTime)
+                  Event.NewOrderBookSubscriptions(orderBookSubscriptions enqueue assetPair)
 
-              if (orderBookSubscriptions.lengthCompare(maxOrderBookNumber) == 0) {
-                // safe since maxOrderBookNumber > 0
-                val (evictedSubscription, remainingSubscriptions) = orderBookSubscriptions.dequeue
-                val newOrderBookSubscriptions = remainingSubscriptions enqueue assetPair
-                unsubscribeOrderBook(evictedSubscription)
-                clientRef ! WsError.from(SubscriptionsLimitReached(maxOrderBookNumber, evictedSubscription.toString), matcherTime)
-                awaitPong(maybeExpectedPong, pongTimeout, nextPing, newOrderBookSubscriptions, addressSubscriptions, maybeRatesUpdateId)
-              } else
-                awaitPong(
-                  maybeExpectedPong,
-                  pongTimeout,
-                  nextPing,
-                  orderBookSubscriptions enqueue assetPair,
-                  addressSubscriptions,
-                  maybeRatesUpdateId
-                )
+                case Success(_: OrderBookDirectoryActor.AggregatedOrderBookEnvelopeSent) =>
+                  context.log.debug(s"Successfully subscribed to orderBook $assetPair")
+                  if (orderBookSubscriptions.lengthCompare(maxOrderBookNumber) == 0) {
+                    // safe since maxOrderBookNumber > 0
+                    val (evictedSubscription, remainingSubscriptions) = orderBookSubscriptions.dequeue
+                    val newOrderBookSubscriptions = remainingSubscriptions enqueue assetPair
+                    unsubscribeOrderBook(evictedSubscription)
+                    clientRef ! WsError.from(SubscriptionsLimitReached(maxOrderBookNumber, evictedSubscription.toString), matcherTime)
+                    Event.NewOrderBookSubscriptions(newOrderBookSubscriptions)
+                  } else
+                    Event.NewOrderBookSubscriptions(orderBookSubscriptions enqueue assetPair)
+
+                case Failure(ex) =>
+                  context.log.error(s"Cannot subscribe to an orderbook $assetPair because of exception: ${ex.getMessage}")
+                  clientRef ! WsError.from(error.OrderBookUnexpectedState(assetPair), matcherTime)
+                  Event.NewOrderBookSubscriptions(orderBookSubscriptions enqueue assetPair)
+              }
+              Behaviors.same
+
+            case Event.NewOrderBookSubscriptions(subscriptions) =>
+              awaitPong(maybeExpectedPong, pongTimeout, nextPing, subscriptions, addressSubscriptions, maybeRatesUpdateId)
 
             case Command.CancelAddressSubscription(address) =>
               clientRef ! WsError.from(error.SubscriptionTokenExpired(address), matcherTime)
