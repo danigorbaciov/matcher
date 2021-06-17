@@ -26,6 +26,8 @@ class WsConnectionTestSuite extends WsSuiteBase {
 
   "Updates both from address and order book" in {
     val wsc = mkDexWsConnection(dex1)
+    val orderBookInitialOrder = mkOrderDP(bob, wavesBtcPair, SELL, 1.waves, 0.00005)
+    placeAndAwaitAtDex(orderBookInitialOrder)
 
     markup("Subscribe to an order book updates")
     wsc.send(WsOrderBookSubscribe(wavesBtcPair, 1))
