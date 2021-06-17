@@ -295,7 +295,7 @@ object WsExternalClientHandlerActor {
                   clientRef ! WsError.from(v.error, matcherTime)
                   Event.NewOrderBookSubscriptions(orderBookSubscriptions enqueue assetPair)
 
-                case Success(_: OrderBookDirectoryActor.AggregatedOrderBookEnvelopeSent) =>
+                case Success(_) =>
                   context.log.debug(s"Successfully subscribed to orderBook $assetPair")
                   if (orderBookSubscriptions.lengthCompare(maxOrderBookNumber) == 0) {
                     // safe since maxOrderBookNumber > 0
