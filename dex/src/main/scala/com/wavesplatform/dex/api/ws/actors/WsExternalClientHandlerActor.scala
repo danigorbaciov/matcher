@@ -50,7 +50,6 @@ object WsExternalClientHandlerActor {
   object Event {
     private[WsExternalClientHandlerActor] case class AssetPairValidated(assetPair: AssetPair) extends Event
     case class Completed(completionStatus: Either[Throwable, Unit]) extends Event
-    case class NewOrderBookSubscriptions(orderBookSubscriptions: Queue[AssetPair]) extends Event
   }
 
   final case class Settings(
@@ -303,9 +302,6 @@ object WsExternalClientHandlerActor {
                   addressSubscriptions,
                   maybeRatesUpdateId
                 )
-
-            case Event.NewOrderBookSubscriptions(subscriptions) =>
-              awaitPong(maybeExpectedPong, pongTimeout, nextPing, subscriptions, addressSubscriptions, maybeRatesUpdateId)
 
             case Command.CancelAddressSubscription(address) =>
               clientRef ! WsError.from(error.SubscriptionTokenExpired(address), matcherTime)
